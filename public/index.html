@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTMP Self-Host Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stream-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .stream-input {
+            margin-bottom: 20px;
+        }
+        
+        .stream-input input {
+            width: 300px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        
+        .stream-input button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .stream-input button:hover {
+            background: #0056b3;
+        }
+        
+        #videoPlayer {
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            background: #000;
+            border-radius: 5px;
+            border: 2px solid #ddd;
+        }
+        
+        .status {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+        
+        .status.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        
+        .status.warning {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        
+        .instructions {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+        }
+        
+        .code {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            border-left: 4px solid #007bff;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>RTMP Self-Host Server</h1>
+        <p>Stream from Blue Iris and view your streams here</p>
+    </div>
+    
+    <div class="stream-section">
+        <h2>Stream Viewer</h2>
+        <div class="stream-input">
+            <input type="text" id="streamKey" placeholder="Enter stream key" value="">
+            <button onclick="loadStream()">Load Stream</button>
+        </div>
+        
+        <div id="streamStatus" class="status warning">
+            No stream detected. Make sure Blue Iris is streaming first.
+        </div>
+        
+        <video id="videoPlayer" controls autoplay muted>
+            <p>Your browser does not support the video element.</p>
+        </video>
+        
+        <div id="debugInfo" style="margin-top: 20px;">
+            <h4>Debug Information:</h4>
+            <p><strong>Stream URL:</strong> <span id="currentStreamUrl">Not loaded</span></p>
+            <p><strong>Server Status:</strong> <span id="serverStatus">Checking...</span></p>
+            <p><strong>Active Streams:</strong> <span id="activeStreams">Checking...</span></p>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <h3>Blue Iris Configuration</h3>
+        <p>To stream from Blue Iris to this server:</p>
+        
+        <h4>RTMP Settings for Blue Iris:</h4>
+        <div class="code" id="rtmpConfig">
+            Loading server configuration...
+        </div>
+        
+        <h4>Alternative HTTP Live Stream URL:</h4>
+        <div class="code" id="httpStreamUrl">
+            Loading...
+        </div>
+        
+        <h4>Network Access:</h4>
+        <div class="code" id="networkAccess">
+            Loading...
+        </div>
+    </div>
+
+    <script>
+        let serverConfig = null;
+        
+        function updateStatus(message, type = 'warning') {
+            const statusDiv = document.getElementById('streamStatus');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+        
+        // Load server configuration
+        function loadServerConfig() {
+            fetch('/api/config')
+                .then(response => response.json())
+                .then(config => {
+                    serverConfig = config;
+                    
+                    // Update stream key input
+                    document.getElementById('streamKey').value = config.streamKey;
+                    
+                    // Update configuration displays
+                    document.getElementById('rtmpConfig').innerHTML = 
+                        `Server URL: ${config.rtmpUrl}<br>Stream Key: ${config.streamKey}`;
+                    
+                    document.getElementById('httpStreamUrl').innerHTML = 
+                        `http://${config.serverIP}:${config.httpApiPort}/live/${config.streamKey}.flv`;
+                    
+                    document.getElementById('networkAccess').innerHTML = 
+                        `Anyone on your network can view at: ${config.webUrl}<br>Local access: http://localhost:${config.webPort}`;
+                })
+                .catch(err => {
+                    console.error('Failed to load server config:', err);
+                    document.getElementById('rtmpConfig').textContent = 'Failed to load configuration';
+                });
+        }
+        
+        function loadStream() {
+            const streamKey = document.getElementById('streamKey').value;
+            const videoPlayer = document.getElementById('videoPlayer');
+            
+            if (!streamKey.trim()) {
+                alert('Please enter a stream key');
+                return;
+            }
+            
+            updateStatus('Loading stream...', 'warning');
+            
+            // Use server config for stream URL
+            if (!serverConfig) {
+                alert('Server configuration not loaded. Please wait and try again.');
+                return;
+            }
+            
+            const streamUrl = `http://${serverConfig.serverIP}:${serverConfig.httpApiPort}/live/${streamKey}.flv`;
+            
+            document.getElementById('currentStreamUrl').textContent = streamUrl;
+            
+            videoPlayer.src = streamUrl;
+            
+            console.log('Loading stream:', streamUrl);
+            
+            videoPlayer.onloadstart = function() {
+                updateStatus('Stream URL loaded, waiting for data...', 'warning');
+            };
+            
+            videoPlayer.oncanplay = function() {
+                updateStatus('Stream is active and playing!', '');
+            };
+            
+            videoPlayer.onerror = function(e) {
+                updateStatus('Stream not found. Make sure Blue Iris is streaming first.', 'error');
+                console.error('Video error:', e);
+            };
+        }
+        
+        // Check server status and streams
+        function checkServerStatus() {
+            fetch('/api/streams')
+                .then(response => {
+                    if (response.ok) {
+                        document.getElementById('serverStatus').textContent = 'Online';
+                        return response.json();
+                    } else {
+                        throw new Error('Server not responding');
+                    }
+                })
+                .then(data => {
+                    console.log('Server response:', data);
+                    document.getElementById('activeStreams').textContent = 
+                        Object.keys(data).length > 0 ? JSON.stringify(data) : 'None';
+                })
+                .catch(err => {
+                    document.getElementById('serverStatus').textContent = 'Error: ' + err.message;
+                    document.getElementById('activeStreams').textContent = 'Unable to check';
+                    console.error('Server check failed:', err);
+                });
+        }
+        
+        // Auto-load default stream on page load
+        window.onload = function() {
+            loadServerConfig();
+            checkServerStatus();
+            // Wait for config to load before loading stream
+            setTimeout(() => {
+                if (serverConfig) {
+                    loadStream();
+                }
+            }, 1000);
+        };
+        
+        // Check for active streams periodically
+        setInterval(checkServerStatus, 5000);
+    </script>
+</body>
+</html>
