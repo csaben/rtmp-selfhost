@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">RTMP Stream Server</title>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary { background: #4CAF50; color: white; }
+        .btn-secondary { background: rgba(255,255,255,0.2); color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        /* Login Modal */
+        .login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .login-form {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 400px;
+            text-align: center;
+        }
+        
+        .login-form h2 {
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        /* Grid Controls */
+        .controls-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .controls-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .controls-header h3 {
+            color: white;
+            font-size: 1.3rem;
+        }
+        
+        .grid-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .grid-controls select {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 10px;
+            background: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        /* Stream Grid */
+        .stream-grid {
+            display: grid;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .stream-grid.grid-1 { grid-template-columns: 1fr; }
+        .stream-grid.grid-2 { grid-template-columns: 1fr 1fr; }
+        .stream-grid.grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .stream-grid.grid-4 { grid-template-columns: repeat(2, 1fr); }
+        .stream-grid.grid-6 { grid-template-columns: repeat(3, 1fr); }
+        .stream-grid.grid-9 { grid-template-columns: repeat(3, 1fr); }
+        
+        .stream-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .stream-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stream-card video {
+            width: 100%;
+            height: 250px;
+            background: #000;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            object-fit: cover;
+        }
+        
+        .stream-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .stream-controls input {
+            flex: 1;
+            min-width: 120px;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .stream-controls .btn {
+            padding: 10px 15px;
+            font-size: 12px;
+        }
+        
+        .stream-status {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            text-align: center;
+            padding: 5px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Debug Panel */
+        .debug-panel {
+            display: none;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .debug-panel.show {
+            display: block;
+        }
+        
+        .debug-panel h3 {
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .debug-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .debug-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+        }
+        
+        .debug-card h4 {
+            color: white;
+            margin-bottom: 15px;
+        }
+        
+        .debug-stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .log-container {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            color: #00ff00;
+        }
+        
+        /* Status indicators */
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online { background: #4CAF50; }
+        .status-offline { background: #f44336; }
+        .status-warning { background: #ff9800; }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .stream-grid {
+                grid-template-columns: 1fr !important;
+            }
+            
+            .grid-controls {
+                justify-content: center;
+            }
+            
+            .debug-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="login-modal" style="display: none;">
+        <div class="login-form">
+            <h2><i class="fas fa-lock"></i> Admin Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-video"></i> <span id="app-title">RTMP Stream Server</span></h1>
+            <div class="header-controls">
+                <div id="statusIndicator">
+                    <span class="status-indicator status-online"></span>
+                    <span>Online</span>
+                </div>
+                <button id="debugToggle" class="btn btn-secondary" style="display: none;">
+                    <i class="fas fa-bug"></i> Debug Mode
+                </button>
+                <button id="loginBtn" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt"></i> Admin
+                </button>
+                <button id="logoutBtn" class="btn btn-danger" style="display: none;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- Stream Controls -->
+        <div class="controls-panel">
+            <div class="controls-header">
+                <h3><i class="fas fa-th"></i> Stream Grid</h3>
+                <div class="grid-controls">
+                    <select id="streamCount" onchange="updateGrid()">
+                        <option value="1">1 Stream</option>
+                        <option value="2">2 Streams</option>
+                        <option value="3">3 Streams</option>
+                        <option value="4">4 Streams</option>
+                        <option value="6">6 Streams</option>
+                        <option value="9">9 Streams</option>
+                    </select>
+                    <button onclick="loadAllStreams()" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Load All
+                    </button>
+                    <button onclick="stopAllStreams()" class="btn btn-danger">
+                        <i class="fas fa-stop"></i> Stop All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stream Grid -->
+        <div id="streamGrid" class="stream-grid grid-1">
+            <!-- Streams will be dynamically added here -->
+        </div>
+
+        <!-- Debug Panel -->
+        <div id="debugPanel" class="debug-panel">
+            <h3><i class="fas fa-chart-line"></i> System Monitoring</h3>
+            <div class="debug-grid">
+                <div class="debug-card">
+                    <h4><i class="fas fa-microchip"></i> Performance</h4>
+                    <div class="debug-stat">
+                        <span>CPU Usage:</span>
+                        <span id="cpuUsage">--</span>
+                    </div>
+                    <div class="debug-stat">
+                        <span>Memory:</span>
+                        <span id="memoryUsage">--</span>
+                    </div>
+                    <div class="debug-stat">
+                        <span>Uptime:</span>
+                        <span id="uptime">--</span>
+                    </div>
+                </div>
+                
+                <div class="debug-card">
+                    <h4><i class="fas fa-network-wired"></i> Network</h4>
+                    <div class="debug-stat">
+                        <span>RX:</span>
+                        <span id="networkRx">--</span>
+                    </div>
+                    <div class="debug-stat">
+                        <span>TX:</span>
+                        <span id="networkTx">--</span>
+                    </div>
+                    <div class="debug-stat">
+                        <span>Active Streams:</span>
+                        <span id="activeStreams">--</span>
+                    </div>
+                </div>
+                
+                <div class="debug-card" style="grid-column: span 2;">
+                    <h4><i class="fas fa-list"></i> Connection Logs</h4>
+                    <div id="logContainer" class="log-container">
+                        Loading logs...
+                    </div>
+                    <button onclick="clearLogs()" class="btn btn-warning" style="margin-top: 10px;">
+                        <i class="fas fa-trash"></i> Clear Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Info -->
+        <div class="controls-panel admin-only" style="display: none;">
+            <h3><i class="fas fa-cog"></i> Blue Iris Configuration</h3>
+            <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 15px; color: #00ff00; font-family: monospace;">
+                <div><strong>RTMP URL:</strong> <span id="rtmpUrl">Loading...</span></div>
+                <div><strong>Stream Key:</strong> <span id="streamKey">Loading...</span></div>
+                <div><strong>Web Access:</strong> <span id="webUrl">Loading...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let serverConfig = null;
+        let flvPlayers = {};
+        let currentStreamCount = 1;
+        let isAuthenticated = false;
+        let isAdmin = false;
+        let debugMode = false;
+
+        // Authentication functions
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const auth = await response.json();
+                isAuthenticated = auth.authenticated;
+                isAdmin = auth.isAdmin;
+                
+                updateAuthUI();
+            } catch (error) {
+                console.error('Auth check failed:', error);
+            }
+        }
+
+        function updateAuthUI() {
+            const loginBtn = document.getElementById('loginBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const debugToggle = document.getElementById('debugToggle');
+            
+            if (isAuthenticated) {
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = 'inline-flex';
+                
+                if (isAdmin) {
+                    debugToggle.style.display = 'inline-flex';
+                    // Show admin-only elements
+                    document.querySelectorAll('.admin-only').forEach(el => {
+                        el.style.display = 'block';
+                    });
+                    document.querySelectorAll('.vlc-button').forEach(el => {
+                        el.style.display = 'inline-flex';
+                    });
+                } else {
+                    // Hide admin-only elements for non-admin users
+                    document.querySelectorAll('.admin-only').forEach(el => {
+                        el.style.display = 'none';
+                    });
+                    document.querySelectorAll('.vlc-button').forEach(el => {
+                        el.style.display = 'none';
+                    });
+                }
+            } else {
+                loginBtn.style.display = 'inline-flex';
+                logoutBtn.style.display = 'none';
+                debugToggle.style.display = 'none';
+                
+                // Hide debug panel if not authenticated
+                document.getElementById('debugPanel').classList.remove('show');
+                debugMode = false;
+                
+                // Hide admin-only elements for non-authenticated users
+                document.querySelectorAll('.admin-only').forEach(el => {
+                    el.style.display = 'none';
+                });
+                document.querySelectorAll('.vlc-button').forEach(el => {
+                    el.style.display = 'none';
+                });
+            }
+        }
+
+        // Login functionality
+        document.getElementById('loginBtn').onclick = () => {
+            document.getElementById('loginModal').style.display = 'flex';
+        };
+
+        document.getElementById('loginForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('loginModal').style.display = 'none';
+                    document.getElementById('username').value = '';
+                    document.getElementById('password').value = '';
+                    await checkAuthStatus();
+                } else {
+                    alert('Login failed: ' + result.error);
+                }
+            } catch (error) {
+                alert('Login error: ' + error.message);
+            }
+        };
+
+        document.getElementById('logoutBtn').onclick = async () => {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                await checkAuthStatus();
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        };
+
+        // Debug toggle
+        document.getElementById('debugToggle').onclick = () => {
+            debugMode = !debugMode;
+            const debugPanel = document.getElementById('debugPanel');
+            
+            if (debugMode) {
+                debugPanel.classList.add('show');
+                document.getElementById('debugToggle').innerHTML = '<i class="fas fa-eye-slash"></i> Hide Debug';
+            } else {
+                debugPanel.classList.remove('show');
+                document.getElementById('debugToggle').innerHTML = '<i class="fas fa-bug"></i> Debug Mode';
+            }
+        };
+
+        // Stream management functions (same as before but with modern styling)
+        function updateGrid() {
+            const streamCount = parseInt(document.getElementById('streamCount').value);
+            currentStreamCount = streamCount;
+            const grid = document.getElementById('streamGrid');
+            
+            grid.className = `stream-grid grid-${streamCount}`;
+            grid.innerHTML = '';
+            
+            for (let i = 1; i <= streamCount; i++) {
+                const streamCard = document.createElement('div');
+                streamCard.className = 'stream-card';
+                streamCard.innerHTML = `
+                    <video id="videoPlayer${i}" controls muted>
+                        <p>Stream ${i} - Enter key and load</p>
+                    </video>
+                    <div class="stream-controls">
+                        <input type="text" id="streamKey${i}" placeholder="Stream key ${i}" value="blueiris_cam${i}">
+                        <button onclick="loadFlvStream(${i})" class="btn btn-primary">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button onclick="openInVLC(${i})" class="btn btn-secondary vlc-button" style="display: none;">
+                            <i class="fas fa-external-link-alt"></i>
+                        </button>
+                        <button onclick="stopStreamById(${i})" class="btn btn-danger">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                    </div>
+                    <div id="streamStatus${i}" class="stream-status">Ready to load stream ${i}</div>
+                `;
+                grid.appendChild(streamCard);
+            }
+        }
+
+        // Load server configuration
+        async function loadServerConfig() {
+            try {
+                const response = await fetch('/api/config');
+                serverConfig = await response.json();
+                
+                // Update configuration display
+                document.getElementById('rtmpUrl').textContent = serverConfig.rtmpUrl;
+                document.getElementById('streamKey').textContent = serverConfig.streamKey;
+                document.getElementById('webUrl').textContent = serverConfig.webUrl;
+                
+                // Update page and app title
+                if (serverConfig.appTitle) {
+                    document.getElementById('page-title').textContent = serverConfig.appTitle;
+                    document.getElementById('app-title').textContent = serverConfig.appTitle;
+                }
+            } catch (error) {
+                console.error('Failed to load server config:', error);
+            }
+        }
+
+        // Hardware monitoring (admin only)
+        async function loadHardwareStats() {
+            if (!isAdmin || !debugMode) return;
+            
+            try {
+                const response = await fetch('/api/performance');
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const stats = data.current;
+                
+                // Update performance stats with color coding
+                const cpuElement = document.getElementById('cpuUsage');
+                const memElement = document.getElementById('memoryUsage');
+                
+                cpuElement.textContent = `${stats.cpu.usage}%`;
+                memElement.textContent = `${stats.memory.percent}%`;
+                document.getElementById('networkRx').textContent = `${stats.network.rx} MB/s`;
+                document.getElementById('networkTx').textContent = `${stats.network.tx} MB/s`;
+                document.getElementById('activeStreams').textContent = Object.keys(flvPlayers).length;
+                
+                // Color code based on usage
+                if (stats.cpu.usage > 80) {
+                    cpuElement.style.color = '#f44336';
+                } else if (stats.cpu.usage > 60) {
+                    cpuElement.style.color = '#ff9800';
+                } else {
+                    cpuElement.style.color = '#4CAF50';
+                }
+                
+                if (stats.memory.percent > 85) {
+                    memElement.style.color = '#f44336';
+                } else if (stats.memory.percent > 70) {
+                    memElement.style.color = '#ff9800';
+                } else {
+                    memElement.style.color = '#4CAF50';
+                }
+                
+                const uptimeMinutes = Math.floor(data.uptime / 60);
+                const uptimeHours = Math.floor(uptimeMinutes / 60);
+                const uptimeDisplay = uptimeHours > 0 ? 
+                    `${uptimeHours}h ${uptimeMinutes % 60}m` : 
+                    `${uptimeMinutes}m`;
+                document.getElementById('uptime').textContent = uptimeDisplay;
+                
+            } catch (error) {
+                console.error('Failed to load hardware stats:', error);
+            }
+        }
+
+        // Connection logs (admin only)
+        async function loadConnectionLogs() {
+            if (!isAdmin || !debugMode) return;
+            
+            try {
+                const response = await fetch('/api/logs');
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const logContainer = document.getElementById('logContainer');
+                
+                if (data.logs.length === 0) {
+                    logContainer.innerHTML = '<div style="color: #666;">No connection attempts yet...</div>';
+                    return;
+                }
+                
+                const logHTML = data.logs.slice(0, 10).map(log => {
+                    const time = new Date(log.timestamp).toLocaleTimeString();
+                    const streamInfo = log.data.streamPath ? ` (${log.data.streamPath})` : '';
+                    
+                    return `<div style="margin-bottom: 3px;">
+                        [${time}] ${log.type.toUpperCase()}: ${log.message}${streamInfo}
+                    </div>`;
+                }).join('');
+                
+                logContainer.innerHTML = logHTML;
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+            }
+        }
+
+        // Clear logs (admin only)
+        async function clearLogs() {
+            if (!isAdmin) {
+                alert('Admin access required');
+                return;
+            }
+            
+            if (confirm('Clear all connection logs?')) {
+                try {
+                    await fetch('/api/logs', { method: 'DELETE' });
+                    loadConnectionLogs();
+                } catch (error) {
+                    console.error('Failed to clear logs:', error);
+                }
+            }
+        }
+
+        // Stream control functions
+        function loadFlvStream(playerId = 1) {
+            const streamKey = document.getElementById(`streamKey${playerId}`).value;
+            const videoElement = document.getElementById(`videoPlayer${playerId}`);
+            const statusElement = document.getElementById(`streamStatus${playerId}`);
+            
+            if (!streamKey.trim()) {
+                alert(`Please enter a stream key for stream ${playerId}`);
+                return;
+            }
+            
+            if (!serverConfig) {
+                alert('Server configuration not loaded. Please wait and try again.');
+                return;
+            }
+            
+            statusElement.textContent = 'Loading FLV stream...';
+            statusElement.style.color = '#ff9800';
+            
+            // Stop existing player if any
+            if (flvPlayers[playerId]) {
+                flvPlayers[playerId].destroy();
+                delete flvPlayers[playerId];
+            }
+            
+            const streamUrl = `http://${serverConfig.serverIP}:${serverConfig.httpApiPort}/live/${streamKey}.flv`;
+            console.log(`Loading FLV stream ${playerId}:`, streamUrl);
+            
+            // Check if flv.js is supported
+            if (!flvjs.isSupported()) {
+                statusElement.textContent = 'FLV not supported in this browser.';
+                statusElement.style.color = '#f44336';
+                return;
+            }
+            
+            try {
+                const player = flvjs.createPlayer({
+                    type: 'flv',
+                    url: streamUrl,
+                    isLive: true
+                });
+                
+                player.attachMediaElement(videoElement);
+                player.load();
+                
+                player.on(flvjs.Events.LOADING_COMPLETE, () => {
+                    statusElement.textContent = 'Stream loaded, starting playback...';
+                    player.play().catch(e => {
+                        console.log(`Autoplay prevented for stream ${playerId}`);
+                        statusElement.textContent = 'Stream ready - click play button';
+                        statusElement.style.color = '#4CAF50';
+                    });
+                });
+                
+                player.on(flvjs.Events.ERROR, (errorType, errorDetail) => {
+                    console.error(`FLV Player Error ${playerId}:`, errorType, errorDetail);
+                    statusElement.textContent = `Stream error: ${errorDetail}`;
+                    statusElement.style.color = '#f44336';
+                });
+                
+                player.on(flvjs.Events.MEDIA_INFO, (mediaInfo) => {
+                    console.log(`Media Info ${playerId}:`, mediaInfo);
+                    statusElement.textContent = 'Stream playing successfully!';
+                    statusElement.style.color = '#4CAF50';
+                });
+                
+                flvPlayers[playerId] = player;
+                
+                // Check loading status
+                setTimeout(() => {
+                    if (player && !videoElement.currentTime) {
+                        statusElement.textContent = 'Stream loading...';
+                        statusElement.style.color = '#ff9800';
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                console.error(`Failed to create FLV player ${playerId}:`, error);
+                statusElement.textContent = 'Failed to create player.';
+                statusElement.style.color = '#f44336';
+            }
+        }
+
+        function stopStreamById(playerId = 1) {
+            if (flvPlayers[playerId]) {
+                flvPlayers[playerId].destroy();
+                delete flvPlayers[playerId];
+                document.getElementById(`streamStatus${playerId}`).textContent = 'Stream stopped';
+            }
+        }
+
+        function loadAllStreams() {
+            for (let i = 1; i <= currentStreamCount; i++) {
+                setTimeout(() => loadFlvStream(i), i * 500);
+            }
+        }
+
+        function stopAllStreams() {
+            Object.keys(flvPlayers).forEach(playerId => {
+                stopStreamById(parseInt(playerId));
+            });
+        }
+
+        function openInVLC(playerId = 1) {
+            if (!serverConfig) return;
+            
+            const streamKey = document.getElementById(`streamKey${playerId}`).value;
+            const directUrl = `http://${serverConfig.serverIP}:${serverConfig.httpApiPort}/live/${streamKey}.flv`;
+            
+            // Copy to clipboard and open
+            navigator.clipboard.writeText(directUrl).then(() => {
+                alert(`Stream ${playerId} URL copied to clipboard!\\n\\nURL: ${directUrl}`);
+                window.open(directUrl, '_blank');
+            });
+        }
+
+        // Initialize app
+        window.onload = async function() {
+            await checkAuthStatus();
+            await loadServerConfig();
+            updateGrid();
+            
+            // Start monitoring intervals
+            setInterval(async () => {
+                await loadHardwareStats();
+                await loadConnectionLogs();
+            }, 5000);
+        };
+
+        // Click outside modal to close
+        document.getElementById('loginModal').onclick = (e) => {
+            if (e.target.id === 'loginModal') {
+                document.getElementById('loginModal').style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>

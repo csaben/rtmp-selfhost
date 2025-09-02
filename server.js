@@ -1,6 +1,8 @@
 require('dotenv').config();
 const NodeMediaServer = require('node-media-server');
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 const os = require('os');
 const si = require('systeminformation');
@@ -196,11 +198,49 @@ async function updateSystemStats() {
 // Create Express app for web interface
 const app = express();
 
-// Serve static files
-app.use(express.static('public'));
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'rtmp-server-default-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: false, // Set to true if using HTTPS
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Body parser middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  if (req.session && req.session.authenticated) {
+    next();
+  } else {
+    res.status(401).json({ error: 'Authentication required' });
+  }
+}
+
+// Check if user can access debug features
+function requireDebugAuth(req, res, next) {
+  if (req.session && req.session.authenticated && req.session.isAdmin) {
+    next();
+  } else {
+    res.status(403).json({ error: 'Admin access required for debug features' });
+  }
+}
 
 // Main page with stream viewer
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+// Serve static files (after route handlers to prevent index.html override)
+app.use(express.static('public'));
+
+// Legacy page (keep for backward compatibility)
+app.get('/legacy', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -220,15 +260,62 @@ app.get('/api/logs', (req, res) => {
   });
 });
 
-// API endpoint to clear connection logs
-app.delete('/api/logs', (req, res) => {
+// Authentication endpoints
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  
+  if (username === adminUsername && password === adminPassword) {
+    req.session.authenticated = true;
+    req.session.isAdmin = true;
+    req.session.username = username;
+    
+    addLog('system', `Admin login successful: ${username}`);
+    res.json({ 
+      success: true, 
+      message: 'Login successful',
+      isAdmin: true
+    });
+  } else {
+    addLog('system', `Failed login attempt: ${username}`);
+    res.status(401).json({ 
+      success: false, 
+      error: 'Invalid credentials' 
+    });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  const username = req.session.username;
+  req.session.destroy((err) => {
+    if (err) {
+      res.status(500).json({ error: 'Logout failed' });
+    } else {
+      addLog('system', `User logged out: ${username}`);
+      res.json({ success: true, message: 'Logged out successfully' });
+    }
+  });
+});
+
+app.get('/api/auth/status', (req, res) => {
+  res.json({
+    authenticated: !!(req.session && req.session.authenticated),
+    isAdmin: !!(req.session && req.session.isAdmin),
+    username: req.session ? req.session.username : null
+  });
+});
+
+// API endpoint to clear connection logs (admin only)
+app.delete('/api/logs', requireDebugAuth, (req, res) => {
   connectionLogs.length = 0;
   addLog('system', 'Connection logs cleared');
   res.json({ success: true, message: 'Logs cleared' });
 });
 
-// API endpoint to get system performance
-app.get('/api/performance', (req, res) => {
+// API endpoint to get system performance (admin only for detailed stats)
+app.get('/api/performance', requireDebugAuth, (req, res) => {
   res.json({
     current: systemStats,
     history: performanceLogs,
@@ -237,8 +324,17 @@ app.get('/api/performance', (req, res) => {
   });
 });
 
-// API endpoint to get performance logs
-app.get('/api/performance/logs', (req, res) => {
+// API endpoint to get basic performance (public)
+app.get('/api/performance/basic', (req, res) => {
+  res.json({
+    cpu: systemStats.cpu.usage,
+    memory: systemStats.memory.percent,
+    uptime: process.uptime()
+  });
+});
+
+// API endpoint to get performance logs (admin only)
+app.get('/api/performance/logs', requireDebugAuth, (req, res) => {
   res.json({
     logs: performanceLogs,
     count: performanceLogs.length
@@ -254,7 +350,8 @@ app.get('/api/config', (req, res) => {
     webPort: webPort,
     streamKey: streamKey,
     rtmpUrl: `rtmp://${serverIP}:${rtmpPort}/live`,
-    webUrl: `http://${serverIP}:${webPort}`
+    webUrl: `http://${serverIP}:${webPort}`,
+    appTitle: process.env.APP_TITLE || 'RTMP Stream Server'
   });
 });
 
