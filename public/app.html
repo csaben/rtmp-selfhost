@@ -194,13 +194,24 @@
             transform: translateY(-5px);
         }
         
-        .stream-card video {
+        .video-container {
+            position: relative;
             width: 100%;
-            height: 250px;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
             background: #000;
             border-radius: 15px;
             margin-bottom: 15px;
-            object-fit: cover;
+            overflow: hidden;
+        }
+        
+        .stream-card video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            object-fit: contain;
         }
         
         .stream-controls {
@@ -217,6 +228,12 @@
             border: none;
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .stream-controls input:read-only {
+            background: rgba(255, 255, 255, 0.5);
+            color: rgba(0, 0, 0, 0.6);
+            cursor: not-allowed;
         }
         
         .stream-controls .btn {
@@ -519,6 +536,15 @@
                     el.style.display = 'none';
                 });
             }
+            
+            // Update stream key inputs based on admin status
+            document.querySelectorAll('[id^="streamKey"]').forEach(input => {
+                if (isAdmin) {
+                    input.removeAttribute('readonly');
+                } else {
+                    input.setAttribute('readonly', 'readonly');
+                }
+            });
         }
 
         // Login functionality
@@ -589,11 +615,13 @@
                 const streamCard = document.createElement('div');
                 streamCard.className = 'stream-card';
                 streamCard.innerHTML = `
-                    <video id="videoPlayer${i}" controls muted>
-                        <p>Stream ${i} - Enter key and load</p>
-                    </video>
+                    <div class="video-container">
+                        <video id="videoPlayer${i}" controls muted>
+                            <p>Stream ${i} - Enter key and load</p>
+                        </video>
+                    </div>
                     <div class="stream-controls">
-                        <input type="text" id="streamKey${i}" placeholder="Stream key ${i}" value="blueiris_cam${i}">
+                        <input type="text" id="streamKey${i}" placeholder="Stream key ${i}" value="blueiris_cam${i}" ${isAdmin ? '' : 'readonly'}>
                         <button onclick="loadFlvStream(${i})" class="btn btn-primary">
                             <i class="fas fa-play"></i>
                         </button>
